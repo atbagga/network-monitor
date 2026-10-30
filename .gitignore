@@ -1,0 +1,12 @@
+/network-monitor.exe
+/network-monitor
+/data/
+/web/node_modules/
+/web/dist/
+/web/*.tsbuildinfo
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+!.env.example

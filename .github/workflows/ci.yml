@@ -1,0 +1,96 @@
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.os }} build and tests
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            binary: network-monitor.exe
+            artifact: network-monitor-windows-amd64
+          - os: ubuntu-latest
+            binary: network-monitor
+            artifact: network-monitor-linux-amd64
+    env:
+      CGO_ENABLED: "0"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dashboard dependencies
+        working-directory: web
+        run: npm ci --no-fund --no-audit
+
+      - name: Type-check and build dashboard
+        working-directory: web
+        run: npm run build
+
+      - name: Check Go formatting
+        run: |
+          $unformatted = @(gofmt -l cmd internal web/assets.go)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($unformatted.Count -gt 0) {
+            $unformatted | Write-Output
+            throw 'Run gofmt on the files listed above.'
+          }
+
+      - name: Verify Go dependencies
+        run: go mod verify
+
+      - name: Run Go tests
+        run: go test -count=1 -timeout 5m ./...
+
+      - name: Run Go vet
+        run: go vet ./...
+
+      - name: Build standalone executable
+        run: go build -trimpath -o "${{ matrix.binary }}" ./cmd/netmon
+
+      - name: Check executable
+        run: |
+          & "./${{ matrix.binary }}" -h
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload executable and notices
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.binary }}
+            LICENSE
+            THIRD-PARTY-NOTICES.md
+          if-no-files-found: error
+          retention-days: 14
