@@ -1,5 +1,7 @@
 # Network Monitor
 
+[![Build and test](https://github.com/atbagga/network-monitor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/atbagga/network-monitor/actions/workflows/ci.yml)
+
 A local-first network discovery service with a web dashboard. Built with Go,
 React/TypeScript, and SQLite. No cloud account is required to run it.
 
